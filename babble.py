@@ -209,5 +209,6 @@ if __name__ == "__main__":
 
     if args["greppable"]:
         loop_capture(cap)
+        exit(0)
     with Live(columns, refresh_per_second=4):
         loop_capture(cap)
