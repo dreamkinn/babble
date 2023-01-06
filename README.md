@@ -30,6 +30,7 @@ babble.py -i eth0 -g
 
 ## Supported Protocols
 - MDNS
+- DHCPv6
 - LLDP
 - CDP
 - DNS (default : Disabled)
