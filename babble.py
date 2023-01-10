@@ -101,9 +101,11 @@ def handle_lldp(packet):
         if args["greppable"]:
             print(f"LLDP:{packet.lldp.tlv_system_name}")
             out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+            out.flush()
             d['lldp'][packet.lldp.tlv_system_name.lower()] = True
             return
         out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+        out.flush()
         LLDP.add_row(packet.lldp.tlv_system_name)
         d['lldp'][packet.lldp.tlv_system_name.lower()] = True
 
@@ -118,9 +120,11 @@ def handle_cdp(packet):
         if args["greppable"]:
             print(f"CDP:{packet.cdp.deviceid}")
             out.write(f"CDP:{packet.cdp.deviceid}\n")
+            out.flush()
             d['cdp'][packet.cdp.deviceid.lower()] = True
             return
         out.write(f"CDP:{packet.cdp.deviceid}\n")
+        out.flush()
         CDP.add_row(packet.cdp.deviceid)
         d['cdp'][packet.cdp.deviceid.lower()] = True
 
@@ -139,9 +143,11 @@ def handle_dns(packet):
         if args["greppable"]:
             print(f"DNS:{query}")
             out.write(f"DNS:{query}\n")
+            out.flush()
             d['dns'][query.lower()] = True
             return
         out.write(f"DNS:{query}\n")
+        out.flush()
         DNS.add_row(query)
         d['dns'][query.lower()] = True
 
@@ -155,9 +161,11 @@ def handle_dhcpv6(packet):
         if args["greppable"]:
             print(f"DHCPv6:{packet.dhcpv6.client_domain}")
             out.write(f"DHCPv6:{packet.dhcpv6.client_domain}\n")
+            out.flush()
             d['dhcpv6'][packet.dhcpv6.client_domain.lower()] = True
             return
         out.write(f"DHCPv6:{packet.dhcpv6.client_domain}\n")
+        out.flush()
         DHCPv6.add_row(packet.dhcpv6.client_domain)
         d['dhcpv6'][packet.dhcpv6.client_domain.lower()] = True
 
@@ -179,10 +187,12 @@ def handle_mdns(packet):
     if not d['mdns'].get(query.lower()) and dns_is_interesting(query):
         if args["greppable"]:
             out.write(f"MDNS:{query}\n")
+            out.flush()
             print(f"MDNS:{query}")
             d['mdns'][query.lower()] = True
             return
         out.write(f"MDNS:{query}\n")
+        out.flush()
         MDNS.add_row(query)
         d['mdns'][query.lower()] = True
 
@@ -195,11 +205,14 @@ def handle_browser(packet):
     if not packet.browser.command == '0x09': # 'Get Backup List Request'
         if not d['browser'].get(packet.browser.server.lower()):
             if args["greppable"]:
-                out.write(f"BROWSER:{packet.browser.server}\n")
-                print(f"BROWSER:{packet.browser.server}")
+                out.write(f"BROWSER:{packet.browser.server}:{packet.nbdgm.destination_name.replace('<1d>','')}\n")
+                out.flush()
+                print(f"BROWSER:{packet.browser.server}:{packet.nbdgm.destination_name.replace('<1d>','')}")
                 d['browser'][packet.browser.server.lower()] = True
                 return
-            out.write(f"BROWSER:{packet.browser.server}\n")
+            out.write(f"BROWSER:{packet.browser.server}:{packet.nbdgm.destination_name.replace('<1d>','')}\n")
+            out.flush()
+            # TODO check user agent before statuting on OS
             BROWSER.add_row(f'{packet.browser.server} {packet.nbdgm.destination_name.replace("<1d>","")} (Win {packet.browser.os_major}.{packet.browser.os_minor})')
             d['browser'][packet.browser.server.lower()] = True
 
@@ -236,7 +249,7 @@ if __name__ == "__main__":
 
     def proper_exit(*args):
         current_live.stop()
-        input(f"{bcolors.OKGREEN}[+]Exiting and saving to out_babble.txt...{bcolors.ENDC}")
+        input(f"\033[92m[+]Exiting and saving to out_babble.txt...\033[0m")
         # if a == 'y':
             # live.stop()
         out.close()
