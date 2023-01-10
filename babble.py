@@ -5,10 +5,14 @@
 
 import argparse
 from argparse import SUPPRESS
+import os
+from signal import signal, SIGINT
+
 import pyshark
 from rich.live import Live
 from rich.table import Table
 from rich.columns import Columns
+# from rich.layout import Layout
 
 
 banner = """
@@ -24,9 +28,20 @@ MDNS  = Table(title="MDNS")
 DHCPv6 = Table(title="DHCPv6")
 LLDP = Table(title="LLDP")
 CDP  = Table(title="CDP")
+BROWSER  = Table(title="BROWSER")
 DNS  = Table(title="DNS")
+# BROWSER : microsoft browser extension : Host name, main OS version
+# under BROWSER : netbios : SOURCE NAME = HOST, DST NAME = domain, source IP : resolve
 
-columns = Columns([MDNS,DHCPv6,LLDP,CDP])
+columns = Columns([MDNS,DHCPv6,BROWSER,LLDP,CDP])
+# layout = Layout()
+
+# layout.split_row(
+#     Layout(MDNS),
+#     Layout(DHCPv6),
+#     Layout(LLDP)
+# )
+
 
 # TODO : last seen column (last time a packet was seen for a given query)
 MDNS.add_column("Query name", style="green")
@@ -41,12 +56,23 @@ LLDP.add_column("System name", style="cyan")
 CDP.add_column("Device ID", style="magenta")
 # CDP.add_column("Last seen", style="magenta")
 
+BROWSER.add_column("Server", style="blue")
+# BROWSER.add_column("Last seen", style="green
+
 DNS.add_column("Query name", style="blue")
 # DNS.add_column("Last seen", style="green")
 
 d = {}
 
-def dns_is_intersting(query):
+# "lan" : <Table LAN>
+# TODO : domain parsing and host aggregation
+# tlds = {}
+out = open("out_babble.txt",'w')
+
+# TODO : ctrl C
+# TODO sys.stdout.write
+
+def dns_is_interesting(query):
     #return True # log all MDNS, including junk
     if query.lower().endswith("_tcp.local"):
         return False
@@ -60,6 +86,10 @@ def dns_is_intersting(query):
         return False
     return True
 
+# TODO : Use for netbios|browser
+def get_protocol_stack(packet):
+    return list(map(lambda x: x._layer_name, packet.layers))
+
 def handle_lldp(packet):
     if not d.get('lldp'):
         d['lldp'] = {"count":1}
@@ -70,13 +100,14 @@ def handle_lldp(packet):
     if not d['lldp'].get(packet.lldp.tlv_system_name.lower()):
         if args["greppable"]:
             print(f"LLDP:{packet.lldp.tlv_system_name}")
+            out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
             d['lldp'][packet.lldp.tlv_system_name.lower()] = True
             return
-
+        out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
         LLDP.add_row(packet.lldp.tlv_system_name)
         d['lldp'][packet.lldp.tlv_system_name.lower()] = True
 
-def handle_cdp(packet,):
+def handle_cdp(packet):
     if not d.get('cdp'):
         d['cdp'] = {"count":1}
     else:
@@ -86,9 +117,10 @@ def handle_cdp(packet,):
     if not d['cdp'].get(packet.cdp.deviceid.lower()):
         if args["greppable"]:
             print(f"CDP:{packet.cdp.deviceid}")
+            out.write(f"CDP:{packet.cdp.deviceid}\n")
             d['cdp'][packet.cdp.deviceid.lower()] = True
             return
-
+        out.write(f"CDP:{packet.cdp.deviceid}\n")
         CDP.add_row(packet.cdp.deviceid)
         d['cdp'][packet.cdp.deviceid.lower()] = True
 
@@ -106,9 +138,10 @@ def handle_dns(packet):
     if not d['dns'].get(query.lower()):
         if args["greppable"]:
             print(f"DNS:{query}")
+            out.write(f"DNS:{query}\n")
             d['dns'][query.lower()] = True
             return
-
+        out.write(f"DNS:{query}\n")
         DNS.add_row(query)
         d['dns'][query.lower()] = True
 
@@ -121,9 +154,10 @@ def handle_dhcpv6(packet):
     if not d['dhcpv6'].get(packet.dhcpv6.client_domain.lower()):
         if args["greppable"]:
             print(f"DHCPv6:{packet.dhcpv6.client_domain}")
+            out.write(f"DHCPv6:{packet.dhcpv6.client_domain}\n")
             d['dhcpv6'][packet.dhcpv6.client_domain.lower()] = True
             return
-
+        out.write(f"DHCPv6:{packet.dhcpv6.client_domain}\n")
         DHCPv6.add_row(packet.dhcpv6.client_domain)
         d['dhcpv6'][packet.dhcpv6.client_domain.lower()] = True
 
@@ -142,13 +176,38 @@ def handle_mdns(packet):
         query = packet.mdns.dns_qry_name
     else:
         query = packet.mdns.dns_resp_name
-    if not d['mdns'].get(query.lower()) and dns_is_intersting(query):
+    if not d['mdns'].get(query.lower()) and dns_is_interesting(query):
         if args["greppable"]:
+            out.write(f"MDNS:{query}\n")
             print(f"MDNS:{query}")
             d['mdns'][query.lower()] = True
             return
+        out.write(f"MDNS:{query}\n")
         MDNS.add_row(query)
         d['mdns'][query.lower()] = True
+
+def handle_browser(packet):
+    if not d.get('browser'):
+        d['browser'] = {"count":1}
+    else:
+        d['browser']['count'] += 1
+    BROWSER.title = f"BROWSER ({d['browser']['count']})"
+    if not packet.browser.command == '0x09': # 'Get Backup List Request'
+        if not d['browser'].get(packet.browser.server.lower()):
+            if args["greppable"]:
+                out.write(f"BROWSER:{packet.browser.server}\n")
+                print(f"BROWSER:{packet.browser.server}")
+                d['browser'][packet.browser.server.lower()] = True
+                return
+            out.write(f"BROWSER:{packet.browser.server}\n")
+            BROWSER.add_row(f'{packet.browser.server} {packet.nbdgm.destination_name.replace("<1d>","")} (Win {packet.browser.os_major}.{packet.browser.os_minor})')
+            d['browser'][packet.browser.server.lower()] = True
+
+ # netbios : cap[46].nbdgm.source_name
+ # netbios : cap[46].nbdgm.destination_name
+ # netbios : cap[46].browser.os_major
+ # netbios : cap[46].browser.os_minor
+ # browser : cap[46].browser.server
 
 def loop_capture(cap):
     for packet in cap:
@@ -162,14 +221,38 @@ def loop_capture(cap):
             handle_dhcpv6(packet)
         elif packet.layers[-1]._layer_name== 'dns' and args['dns']:
             handle_dns(packet)
+        elif packet.layers[-1]._layer_name== 'browser':
+            handle_browser(packet)
 
+
+def wrapper_loop_capture(files):
+    for file in files:
+        cap = pyshark.FileCapture(file)
+        loop_capture(cap)
 
 if __name__ == "__main__":
+
+    global current_live
+
+    def proper_exit(*args):
+        current_live.stop()
+        input(f"{bcolors.OKGREEN}[+]Exiting and saving to out_babble.txt...{bcolors.ENDC}")
+        # if a == 'y':
+            # live.stop()
+        out.close()
+        exit(0) 
+        # current_live.start()
+
+    signal(SIGINT, proper_exit)
+
 
     parser = argparse.ArgumentParser(usage=SUPPRESS,formatter_class=argparse.RawDescriptionHelpFormatter, epilog="""	
     ###	Babble - a passive discovery tool that analyzes network noise
         babble.py -i eth
         babble.py -f dump.pcapng
+ 
+        # greppable
+        babble.py -i eth -g
     		""")
 
     parser.add_argument('-f','--file',  type=str)
@@ -185,30 +268,53 @@ if __name__ == "__main__":
 
     if not args["greppable"]:
         print(banner)
-        print("Analyzing noise...\n")
 
     if args["file"] and args["interface"]:
         print("Please specify either a file or an interface")
         exit(0)
 
+    if args['dns']:
+        columns.add_renderable(DNS)
+
     if args["file"]:
-        cap = pyshark.FileCapture(args["file"])
+        if os.path.isdir(args["file"]):
+            input_file = [os.path.abspath(args["file"]) + '/' + fl for fl in os.listdir(args["file"])]
+        elif os.path.isfile(args["file"]):
+            input_file = [args["file"]]
+    
+        input_file = list(map(lambda file: os.path.abspath(file), input_file))
+        
+        if args["greppable"]:
+            wrapper_loop_capture(input_file)
+            exit(0)
+
+        with Live(columns, refresh_per_second=4, screen=True) as live:
+            current_live = live
+            live.console.print("Analyzing noise...\n")
+            wrapper_loop_capture(input_file)
+
     elif args["interface"]:
         cap = pyshark.LiveCapture(interface=args["interface"])
+        if args["greppable"]:
+            loop_capture(cap)
+            exit(0)
+        with Live(columns, refresh_per_second=4, screen=True) as live:
+            current_live = live
+            live.console.print("Analyzing noise...\n")
+            loop_capture(cap)
     else:
         print("No input specified, defaulting to interface eth")
         try:
             cap = pyshark.LiveCapture(interface=default_interface)
+            if args["greppable"]:
+                loop_capture(cap)
+                exit(0)
+            with Live(columns, refresh_per_second=4, screen=True) as live:
+                current_live = live
+                live.console.print("Analyzing noise...\n")
+                loop_capture(cap)
         except:
             print("An error occured while trying to capture on interface eth")
             exit(0)
-
-    if args['dns']:
-        columns.add_renderable(DNS)
-
-
-    if args["greppable"]:
-        loop_capture(cap)
-        exit(0)
-    with Live(columns, refresh_per_second=4):
-        loop_capture(cap)
+    
+    proper_exit()
