@@ -1,11 +1,12 @@
 # Babble - Passive discovery
 TL;DR : Passive discovery from broadcast network noise.
 
-Babble is a Python script that parses packets of protocols that are common in entreprise LANs. It then logs the hostnames/domains found in a pretty table.
+Babble is a Python script that parses packets of protocols that are common in entreprise LANs. It then logs the hostnames/domains found in a pretty table and in greppable format.
 The advantages of Babble are the following :
 - Stealth : no network interaction
 - Easily runs in background
 - Supports Linux network interfaces and  `.pcap` files
+- Greppable output easily exploitable with awk
 
 Babble can be useful in early phases of offensive security audits, when the auditors have no foothold but still want to discover domains/hosts/services stealthily.
 
@@ -30,6 +31,7 @@ babble.py -i eth0 -g
 
 ## Supported Protocols
 - MDNS
+- BROWSER (over NETBIOS : parsed too)
 - DHCPv6
 - LLDP
 - CDP
