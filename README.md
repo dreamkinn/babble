@@ -31,7 +31,7 @@ babble.py -i eth0 -g
 
 ## Supported Protocols
 - MDNS
-- BROWSER
+- BROWSER (over NETBIOS : parsed too)
 - DHCPv6
 - LLDP
 - CDP
