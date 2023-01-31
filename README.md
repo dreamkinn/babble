@@ -36,6 +36,7 @@ babble.py -i eth0 -g
 - LLDP
 - CDP
 - DNS (default : Disabled)
+- NETBIOS
 
 Don't hesitate to ask support for other relevant protocols
 
