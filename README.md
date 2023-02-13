@@ -1,6 +1,8 @@
 # Babble - Passive discovery
 TL;DR : Passive discovery from broadcast network noise.
 
+![screenshot](./assets/screen.png)
+
 Babble is a Python script that parses packets of protocols that are common in entreprise LANs. It then logs the hostnames/domains found in a pretty table and in greppable format.
 The advantages of Babble are the following :
 - Stealth : no network interaction
