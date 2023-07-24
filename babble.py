@@ -24,6 +24,7 @@ Author: @Dreamkinn
 """
 
 default_interface = "eth"
+protocol_filter="lldp or browser or dns or mdns or netbios or dhcpv6 or cdp"
 
 MDNS  = Table(title="MDNS")
 DHCPv6 = Table(title="DHCPv6")
@@ -50,7 +51,7 @@ columns = Columns([MDNS,DHCPv6,BROWSER,LLDP,CDP,TOTAL])
 MDNS.add_column("Query name", style="green")
 # MDNS.add_column("Last seen", style="green")
 
-DHCPv6.add_column("CLient FQDN", style="red")
+DHCPv6.add_column("Client FQDN", style="red")
 # MDNS.add_column("Last seen", style="green")
 
 LLDP.add_column("System name", style="cyan")
@@ -89,8 +90,8 @@ else:
  # netbios : cap[46].browser.os_minor
  # browser : cap[46].browser.server
 
-def loop_capture(cap):
-    ph = PacketHandler(args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, out)
+def loop_capture(cap, debug=False):
+    ph = PacketHandler(args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, out, debug=debug)
     parsed = 0
     for packet in cap:
         parsed +=1
@@ -107,13 +108,13 @@ def loop_capture(cap):
             ph.handle_dns(packet)
         elif packet.layers[-1]._layer_name== 'browser':
             ph.handle_browser(packet)
-        elif packet.layers[-1]._layer_name== 'netbios':
-            ph.handle_netbios(packet)
+        # elif packet.layers[-1]._layer_name== 'netbios':
+        #     ph.handle_netbios(packet)
 
-def wrapper_loop_capture(files):
+def wrapper_loop_capture(files, debug):
     for file in files:
-        cap = pyshark.FileCapture(file)
-        loop_capture(cap)
+        cap = pyshark.FileCapture(file, display_filter=protocol_filter)
+        loop_capture(cap, debug)
 
 if __name__ == "__main__":
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
 
     def proper_exit(*args):
         current_live.stop()
-        input(f"\033[92m[+]Exiting and saving to {out.name}...\033[0m")
+        print(f"\033[92m[+]Exiting and saving to {out.name}...\033[0m")
         # if a == 'y':
             # live.stop()
         out.close()
@@ -133,7 +134,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(usage=SUPPRESS,formatter_class=argparse.RawDescriptionHelpFormatter, epilog="""	
     ###	Babble - a passive discovery tool that analyzes network noise
-        babble.py -i eth
+        babble.py -i eth0
         babble.py -f dump.pcapng
  
         # greppable
@@ -142,10 +143,11 @@ if __name__ == "__main__":
 
     parser.add_argument('-f','--file',  type=str)
     parser.add_argument('-i','--interface',  type=str)
-    parser.add_argument('-d','--dns', action=argparse.BooleanOptionalAction, default=False, help="Enable DNS logging, might pollute output")
-    parser.add_argument('-j','--junk', action=argparse.BooleanOptionalAction, default=False, help="Enable Junk MDNS logging, might pollute output")
-    parser.add_argument('-g','--greppable', action=argparse.BooleanOptionalAction, default=False, help="Greppable output")
-
+    parser.add_argument('-g','--greppable', action="store_true", help="Greppable output")
+    parser.add_argument('-s','--fullscreen', action="store_true", help="Make fullscreen")
+    parser.add_argument('-d','--dns', action="store_true", help="Enable DNS logging, might pollute output")
+    parser.add_argument('-j','--junk', action="store_true", help="Enable Junk MDNS logging, might pollute output")
+    parser.add_argument('-D','--debug', action="store_true", help="Enable debug mode")
     # TODO : write data to file, so several captures can be merged
     # TODO : CIDR analysis
     # TODO : add progress bar
@@ -171,39 +173,44 @@ if __name__ == "__main__":
         input_file = list(map(lambda file: os.path.abspath(file), input_file))
         
         if args["greppable"]:
-            wrapper_loop_capture(input_file)
+            wrapper_loop_capture(input_file, args.get("debug"))
             exit(0)
 
-        # with Live(columns, refresh_per_second=4, screen=True) as live:
-        with Live(columns, refresh_per_second=4) as live:
+        with Live(columns, refresh_per_second=4, screen=args["fullscreen"]) as live:
+        # with Live(columns, refresh_per_second=4) as live:
             current_live = live
             live.console.print("Analyzing noise...\n")
-            wrapper_loop_capture(input_file)
+            wrapper_loop_capture(input_file, args.get("debug"))
 
     elif args["interface"]:
-        cap = pyshark.LiveCapture(interface=args["interface"])
+        # TODO : use BPF filters = much faster
+        cap = pyshark.LiveCapture(  interface=args["interface"], 
+                                    tshark_path="/usr/bin/tshark",
+                                    display_filter=protocol_filter)
         if args["greppable"]:
             loop_capture(cap)
             exit(0)
-        # with Live(columns, refresh_per_second=4, screen=True) as live:
-        with Live(columns, refresh_per_second=4) as live:
+        with Live(columns, refresh_per_second=4, screen=args["fullscreen"]) as live:
+        # with Live(columns, refresh_per_second=4) as live:
             current_live = live
             live.console.print("Analyzing noise...\n")
             loop_capture(cap)
     else:
         print("No input specified, defaulting to interface eth")
         try:
-            cap = pyshark.LiveCapture(interface=default_interface)
+            cap = pyshark.LiveCapture(  interface=default_interface,
+                                        tshark_path="/usr/bin/tshark",
+                                        display_filter=protocol_filter)
             if args["greppable"]:
                 loop_capture(cap)
                 exit(0)
-            # with Live(columns, refresh_per_second=4, screen=True) as live:
-            with Live(columns, refresh_per_second=4) as live:
+            with Live(columns, refresh_per_second=4, screen=args["fullscreen"]) as live:
+            # with Live(columns, refresh_per_second=4) as live:
                 current_live = live
                 live.console.print("Analyzing noise...\n")
                 loop_capture(cap)
         except:
             print("An error occured while trying to capture on interface eth")
             exit(0)
-    
+
     proper_exit()
