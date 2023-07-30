@@ -156,37 +156,49 @@ class PacketHandler:
             self.d['mdns']['count'] += 1
         self.MDNS.title = f"MDNS ({self.d['mdns']['count']})"
 
-        try:
-            queries = []
-            if 'dns_resp_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_resp_name)
-            if 'dns_ptr_domain_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_ptr_domain_name)
-            if 'dns_qry_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_qry_name)
-                
-            if self.debug:
-                self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type)
-
-            for query in queries:
-                if not self.d['mdns'].get(query.lower()) and self.dns_is_interesting(query):
-                    if self.args["greppable"]:
-                        self.out.write(f"MDNS:{query}\n")
-                        self.out.flush()
-                        print(f"MDNS:{query}")
-                        self.d['mdns'][query.lower()] = True
-                        return
+        # try:
+        queries = []
+        if 'dns_resp_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_resp_name)
+        if 'dns_ptr_domain_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_ptr_domain_name)
+        if 'dns_qry_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_qry_name)
+        if 'dns_srv_target' in packet.mdns.field_names:
+            target = packet.mdns.dns_srv_target
+            if 'dns_srv_port' in packet.mdns.field_names:
+                target += f":{packet.mdns.dns_srv_port}"
+            if 'dns_hinfo_os' in packet.mdns.field_names:
+                target += f" ({packet.mdns.dns_hinfo_os})"
+            queries.append(target)
+        
+        info = []
+        if 'dns_txt' in packet.mdns.field_names:
+            info.append(packet.mdns.dns_txt)
+        if 'dns_hinfo_os' in  packet.mdns.field_names:
+            info.append(packet.mdns.dns_hinfo_os)
+            
+        if self.debug:
+            self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type)
+        for query in queries:
+            if not self.d['mdns'].get(query.lower()) and self.dns_is_interesting(query):
+                if self.args["greppable"]:
                     self.out.write(f"MDNS:{query}\n")
                     self.out.flush()
-                    self.MDNS.add_row(query)
+                    print(f"MDNS:{query}")
                     self.d['mdns'][query.lower()] = True
-        except:
-            if self.debug:
-                print_error("Error in handle_mdns")
-                if packet.mdns.dns_flags_response == '0':
-                    self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type, print=print_error)
-                else:
-                    self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_resp_type, print=print_error)
+                    return
+                self.out.write(f"MDNS:{query}\n")
+                self.out.flush()
+                self.MDNS.add_row(query)
+                self.d['mdns'][query.lower()] = True
+        # except:
+        #     if self.debug:
+        #         print_error("Error in handle_mdns")
+        #         if packet.mdns.dns_flags_response == '0':
+        #             self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type, print=print_error, force=True)
+        #         else:
+        #             self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_resp_type, print=print_error, force=True)
 
 # doc here : https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-brws/0e74d70e-dcf7-422e-8285-e2e193f363d9
     def handle_browser(self, packet):
