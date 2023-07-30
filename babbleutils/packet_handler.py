@@ -208,7 +208,7 @@ class PacketHandler:
 
             if packet.browser.command == "0x02":
                 identifier = packet.browser.response_computer_name
-            elif packet.browser.column == "0x0a":
+            elif packet.browser.command == "0x0a":
                 identifier = packet.browser.backup_server
             elif packet.browser.command == "0x0b":
                 identifier = packet.browser.browser_to_promote
@@ -237,7 +237,12 @@ class PacketHandler:
                     if packet.browser.comment != "00":
                         comment = packet.browser.comment
 
-                windows = lookup_windows(f"{packet.browser.os_major}.{packet.browser.os_minor}")
+                windows=""
+                if "windows_version" in packet.browser.field_names:
+                    if len(packet.browser.windows_version) != 4: # e.g. 0409
+                        windows = f"({packet.browser.windows_version.replace(' or ','|')})"
+                else:
+                    windows = lookup_windows(f"{packet.browser.os_major}.{packet.browser.os_minor}")
                 out_arr = [f"{dst_name}\{identifier}", nb_name, windows, mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
