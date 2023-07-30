@@ -48,15 +48,18 @@ class PacketHandler:
                 self.print_packet("lldp", packet, packet.lldp, packet.lldp.tlv_type)
 
             if not self.d['lldp'].get(packet.lldp.tlv_system_name.lower()):
+                vlan_name = ""
+                if "ieee_802_1_vlan_name" in packet.lldp.field_names:
+                    vlan_name = packet.lldp.ieee_802_1_vlan_name  
                 if self.args["greppable"]:
-                    print(f"LLDP:{packet.lldp.tlv_system_name}")
-                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+                    print(f"LLDP:{packet.lldp.tlv_system_name} : {vlan_name}")
+                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
                     self.out.flush()
                     self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
                     return
-                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
                 self.out.flush()
-                self.LLDP.add_row(packet.lldp.tlv_system_name)
+                self.LLDP.add_row(f"{packet.lldp.tlv_system_name} : {vlan_name}")
                 self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
         except:
             if self.debug:
@@ -74,20 +77,24 @@ class PacketHandler:
             if self.debug:
                 self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid)
             if not self.d['cdp'].get(packet.cdp.deviceid.lower()):
+
+                ip = ""
+                if "nrgyz_ip_address" in packet.cdp.field_names:
+                    ip = packet.cdp.nrgyz_ip_address 
                 if self.args["greppable"]:
-                    print(f"CDP:{packet.cdp.deviceid}")
-                    self.out.write(f"CDP:{packet.cdp.deviceid}\n")
+                    print(f"CDP:{packet.cdp.deviceid} : {ip}")
+                    self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
                     self.out.flush()
                     self.d['cdp'][packet.cdp.deviceid.lower()] = True
                     return
-                self.out.write(f"CDP:{packet.cdp.deviceid}\n")
+                self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
                 self.out.flush()
-                self.CDP.add_row(packet.cdp.deviceid)
+                self.CDP.add_row(f"{packet.cdp.deviceid} : {ip}")
                 self.d['cdp'][packet.cdp.deviceid.lower()] = True
         except:
             if self.debug:
                 print_error("Error in handle_cdp")
-                self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid, print=print_error)
+                self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid, print=print_error, force=True)
 
     def handle_dns(self, packet):
         if not self.d.get('dns'):
