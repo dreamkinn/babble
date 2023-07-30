@@ -7,6 +7,21 @@ def print_error(msg):
 def print_info(msg):
     print(f"\033[94m[*] {msg}\033[0m")
 
+def lookup_windows(nt):
+    win = {
+        "5.0":"(Windows 2000)",
+        "5.1":"(Windows XP)",
+        "5.2":"(Windows Server 2003)",
+        "6.0":"(Windows Server 2008)",
+        "6.1":"(Linux|Windows 7|Windows 2008R2)",
+        "6.2":"(Windows 2012)",
+        "6.3":"(Windows 2012R2)",
+        "10":"(Windows 10|Windows Server 2016+)"
+    }
+    if win.get(nt):
+        return win[nt]
+    return ""
+
 class PacketHandler:
     def __init__(self, args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, output, debug=False):
         self.d = d
@@ -181,12 +196,26 @@ class PacketHandler:
             self.d['browser']['count'] += 1
         self.BROWSER.title = f"BROWSER ({self.d['browser']['count']})"
 
+        # not interesting
+        if packet.browser.command == "0x08" or packet.browser.command == "0x09":
+            return
+
         try:
             # if not packet.browser.command == '0x09': # 'Get Backup List Request'
             if self.debug:
                 self.print_packet("browser", packet, packet.browser, packet.browser.command)
             
-            if not self.d['browser'].get(packet.browser.server.lower()):
+
+            if packet.browser.command == "0x02":
+                identifier = packet.browser.response_computer_name
+            elif packet.browser.column == "0x0a":
+                identifier = packet.browser.backup_server
+            elif packet.browser.command == "0x0b":
+                identifier = packet.browser.browser_to_promote
+            else:
+                identifier = packet.browser.server
+
+            if not self.d['browser'].get(identifier.lower()):
                 stack = get_protocol_stack(packet)
  
                 nb_name = ""
@@ -207,7 +236,9 @@ class PacketHandler:
                 elif packet.browser.command == "0x0f":
                     if packet.browser.comment != "00":
                         comment = packet.browser.comment
-                out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
+
+                windows = lookup_windows(f"{packet.browser.os_major}.{packet.browser.os_minor}")
+                out_arr = [f"{dst_name}\{identifier}", nb_name, windows, mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
 
@@ -215,18 +246,18 @@ class PacketHandler:
                     self.out.write(f"BROWSER:{out_str}\n")
                     self.out.flush()
                     print(f"BROWSER:{out_str}")
-                    self.d['browser'][packet.browser.server.lower()] = True
+                    self.d['browser'][identifier.lower()] = True
                     return
                 self.out.write(f"BROWSER:{out_str}\n")
                 self.out.flush()
                 # TODO check user agent before statuting on OS
                 self.BROWSER.add_row(out_str)
-                self.d['browser'][packet.browser.server.lower()] = True
+                self.d['browser'][identifier.lower()] = True
         except:
             if self.debug:
                 print_error("Error in handle_browser")
                 print_error(f"Stack : {get_protocol_stack(packet)}")
-                self.print_packet("browser", packet, packet.browser, packet.browser.command, print=print_error)
+                self.print_packet("browser", packet, packet.browser, packet.browser.command, print=print_error, force=True)
 
     # def handle_netbios(self,packet):
     #     if not self.d.get('browser'):
@@ -268,9 +299,9 @@ class PacketHandler:
             return False
         return True
 
-    def print_packet(self,protocolstring, packet, protocol, identifier,print=print_info):
+    def print_packet(self,protocolstring, packet, protocol, identifier,print=print_info, force=False):
         # print_error(packet)
-        if not self.d.get(f"{protocolstring}{identifier}"):
+        if not self.d.get(f"{protocolstring}{identifier}") or force:
             print(f"Stack : {get_protocol_stack(packet)}")
             print(protocol.field_names)
             for i in protocol.field_names:
