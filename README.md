@@ -13,7 +13,10 @@ The advantages of Babble are the following :
 Babble can be useful in early phases of offensive security audits, when the auditors have no foothold but still want to discover domains/hosts/services stealthily.
 
 ## Installation
-Requirements :
+Packages : 
+- tshark
+
+Python 3 packages :
 - pyshark
 - rich
 ```
