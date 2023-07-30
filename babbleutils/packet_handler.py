@@ -199,15 +199,14 @@ class PacketHandler:
 
                 mb_server = ""
                 comment = ""
-                match packet.browser.command:
-                    case "0x01":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
-                    case "0x0c":
-                        mb_server = packet.browser.mb_server
-                    case "0x0f":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
+                if packet.browser.command == "0x01":
+                    if packet.browser.comment != "00":
+                        comment = packet.browser.comment
+                elif packet.browser.command == "0x0c":
+                    mb_server = packet.browser.mb_server
+                elif packet.browser.command == "0x0f":
+                    if packet.browser.comment != "00":
+                        comment = packet.browser.comment
                 out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
