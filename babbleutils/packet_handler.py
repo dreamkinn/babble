@@ -108,7 +108,7 @@ class PacketHandler:
                 query = packet.dns.qry_name
             else:
                 query = packet.dns.resp_name
-            if not self.d['dns'].get(query.lower()):
+            if not self.d['dns'].get(query.lower()) and self.dns_is_interesting(query.lower()):
                 if self.args["greppable"]:
                     print(f"DNS:{query}")
                     self.out.write(f"DNS:{query}\n")
