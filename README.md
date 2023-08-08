@@ -46,9 +46,13 @@ babble.py -i eth0 -g
 Don't hesitate to ask support for other relevant protocols
 
 ## TODO
+- SSDP
 - Save data to file, so several captures can be merged
 - CIDR analysis
 - Progress bar for pcap ingestion
 - Last seen column (last time a packet was seen for a given query)
 
 - Sources : https://www.netresec.com/?page=PcapFiles
+
+
+- mongodb + fastapi + gui

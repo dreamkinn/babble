@@ -12,7 +12,10 @@ import pyshark
 from rich.live import Live
 from rich.table import Table
 from rich.columns import Columns
-from babbleutils.packet_handler import PacketHandler
+from dotenv import dotenv_values
+
+from babbleutils.packet_scraper import PacketScraper
+from babbleutils.net_analyser import DatabaseHandler
 # from rich.layout import Layout
 
 
@@ -70,15 +73,16 @@ TOTAL.add_column("TOTAL",style="blue")
 
 d = {}
 
+outpath = "./out/"
 # "lan" : <Table LAN>
 # TODO : domain parsing and host aggregation
 # tlds = {}
-if not os.path.isfile("out_babble.txt"):
-    out = open("out_babble.txt",'w')
+if not os.path.isfile(f"{outpath}out_babble.txt"):
+    out = open(f"{outpath}out_babble.txt",'w')
 else:
     from datetime import datetime
     date_time_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
-    out = open(f"out_babble_{date_time_str}.txt",'w')
+    out = open(f"{outpath}out_babble_{date_time_str}.txt",'w')
     
 
 # TODO : ctrl C
@@ -91,25 +95,43 @@ else:
  # browser : cap[46].browser.server
 
 def loop_capture(cap, debug=False):
-    ph = PacketHandler(args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, out, debug=debug)
+    db = DatabaseHandler(dotenv_values(".env"), args, TOTAL, out, debug=debug)
+    ps = PacketScraper(args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, out, debug=debug)
     parsed = 0
     for packet in cap:
         parsed +=1
         TOTAL.title = f"TOTAL {parsed}"
         if packet.layers[-1]._layer_name== 'lldp':
-            ph.handle_lldp(packet)
+            ps.handle_lldp(packet)
         elif packet.layers[-1]._layer_name== 'cdp':
-            ph.handle_cdp(packet)
+            ps.handle_cdp(packet)
         elif packet.layers[-1]._layer_name== 'mdns':
-            ph.handle_mdns(packet)
+            ps.handle_mdns(packet)
         elif packet.layers[-1]._layer_name== 'dhcpv6':
-            ph.handle_dhcpv6(packet)
+            ps.handle_dhcpv6(packet)
         elif packet.layers[-1]._layer_name== 'dns' and args['dns']:
-            ph.handle_dns(packet)
+            ps.handle_dns(packet)
         elif packet.layers[-1]._layer_name== 'browser':
-            ph.handle_browser(packet)
+            ps.handle_browser(packet)
+
+        # print(dir(packet.layers[0]))
+        for layer in packet.layers:
+            mac = ""
+            ip = ""
+            ipv6 = ""
+            if layer.layer_name == "eth":
+                mac = layer.src
+                # print(mac)
+            if layer.layer_name == "ip":
+                ip = layer.src
+                # print(ip)
+            if layer.layer_name == "ipv6":
+                ipv6 = layer.src
+                # print(ipv6)
+            db.put_machine({"ip":ip, "ipv6":ipv6, "mac":mac})
+
         # elif packet.layers[-1]._layer_name== 'netbios':
-        #     ph.handle_netbios(packet)
+        #     ps.handle_netbios(packet)
 
 def wrapper_loop_capture(files, debug):
     for file in files:
@@ -149,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument('-d','--dns', action="store_true", help="Enable DNS logging, might pollute output")
     parser.add_argument('-j','--junk', action="store_true", help="Enable Junk MDNS logging, might pollute output")
     parser.add_argument('-D','--debug', action="store_true", help="Enable debug mode")
+    parser.add_argument('-a','--all', action="store_true", help="Yeet Wireshark filter and scan all packets")
     # TODO : write data to file, so several captures can be merged
     # TODO : CIDR analysis
     # TODO : add progress bar
@@ -165,6 +188,9 @@ if __name__ == "__main__":
     if args['dns']:
         columns.add_renderable(DNS)
         protocol_filter += " or dns"
+    
+    if args['all']:
+        protocol_filter = ""
 
     if args["file"]:
         if os.path.isdir(args["file"]):

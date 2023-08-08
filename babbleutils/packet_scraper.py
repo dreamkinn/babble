@@ -22,7 +22,7 @@ def lookup_windows(nt):
         return win[nt]
     return ""
 
-class PacketHandler:
+class PacketScraper:
     def __init__(self, args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, output, debug=False):
         self.d = d
         self.args = args

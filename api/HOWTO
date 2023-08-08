@@ -1,0 +1,19 @@
+```
+docker-compose up -d
+python -m uvicorn main:app --reload
+```
+Doc (requires internet conn...) : http://localhost:8000/docs
+
+Tuto : https://www.mongodb.com/languages/python/pymongo-tutorial
+
+- Pymongo Doc
+https://pymongo.readthedocs.io/en/stable/tutorial.html
+
+- Insert only if exists
+https://stackoverflow.com/questions/2801008/mongodb-insert-if-not-exists
+
+- Querying in pymongo : regex
+https://stackoverflow.com/questions/45524740/querying-like-in-pymongo
+
+
+https://stackoverflow.com/questions/25589113/how-to-select-a-single-field-for-all-documents-in-a-mongodb-collection

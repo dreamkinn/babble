@@ -1,2 +1,2 @@
-pyshark
-rich
+python-dotenv
+pymongo
