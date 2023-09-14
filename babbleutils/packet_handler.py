@@ -193,9 +193,9 @@ class PacketHandler:
                 dst_name = ""
                 if "netbios" in stack:
                     # TODO : sender_name is inaccessible, only nb name
-                    nb_name = packet.netbios.nb_name.replace('<01>','').replace('<02>','').replace('<1d>','').replace('<1e>','')
+                    nb_name = packet.netbios.nb_name.replace('<01>','').replace('<02>','').replace('<1d>','').replace('<1e>','').replace('<20>','')
                 if "nbdgm" in stack:
-                    dst_name = packet.nbdgm.destination_name.replace('<01>','').replace('<02>','').replace('<1d>','').replace('<1e>','')
+                    dst_name = packet.nbdgm.destination_name.replace('<01>','').replace('<02>','').replace('<1d>','').replace('<1e>','').replace('<20>','')
 
                 mb_server = ""
                 comment = ""
