@@ -48,18 +48,18 @@ class PacketHandler:
                 self.print_packet("lldp", packet, packet.lldp, packet.lldp.tlv_type)
 
             if not self.d['lldp'].get(packet.lldp.tlv_system_name.lower()):
-                vlan_name = ""
-                if "ieee_802_1_vlan_name" in packet.lldp.field_names:
-                    vlan_name = packet.lldp.ieee_802_1_vlan_name  
+                # vlan_name = ""
+                # if "ieee_802_1_vlan_name" in packet.lldp.field_names:
+                #     vlan_name = packet.lldp.ieee_802_1_vlan_name  
                 if self.args["greppable"]:
-                    print(f"LLDP:{packet.lldp.tlv_system_name} : {vlan_name}")
-                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
+                    print(f"LLDP:{packet.lldp.tlv_system_name}")
+                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
                     self.out.flush()
                     self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
                     return
-                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
+                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
                 self.out.flush()
-                self.LLDP.add_row(f"{packet.lldp.tlv_system_name} : {vlan_name}")
+                self.LLDP.add_row(f"{packet.lldp.tlv_system_name}")
                 self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
         except:
             if self.debug:
@@ -78,18 +78,18 @@ class PacketHandler:
                 self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid)
             if not self.d['cdp'].get(packet.cdp.deviceid.lower()):
 
-                ip = ""
-                if "nrgyz_ip_address" in packet.cdp.field_names:
-                    ip = packet.cdp.nrgyz_ip_address 
+                # ip = ""
+                # if "nrgyz_ip_address" in packet.cdp.field_names:
+                #     ip = packet.cdp.nrgyz_ip_address 
                 if self.args["greppable"]:
-                    print(f"CDP:{packet.cdp.deviceid} : {ip}")
-                    self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
+                    print(f"CDP:{packet.cdp.deviceid}")
+                    self.out.write(f"CDP:{packet.cdp.deviceid}\n")
                     self.out.flush()
                     self.d['cdp'][packet.cdp.deviceid.lower()] = True
                     return
-                self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
+                self.out.write(f"CDP:{packet.cdp.deviceid}\n")
                 self.out.flush()
-                self.CDP.add_row(f"{packet.cdp.deviceid} : {ip}")
+                self.CDP.add_row(f"{packet.cdp.deviceid}")
                 self.d['cdp'][packet.cdp.deviceid.lower()] = True
         except:
             if self.debug:
@@ -234,7 +234,7 @@ class PacketHandler:
             else:
                 identifier = packet.browser.server
 
-            if not self.d['browser'].get(identifier.lower()):
+            if not self.d['browser'].get(packet.browser.server.lower()):
                 stack = get_protocol_stack(packet)
  
                 nb_name = ""
@@ -245,27 +245,24 @@ class PacketHandler:
                 if "nbdgm" in stack:
                     dst_name = packet.nbdgm.destination_name.replace('<01>','').replace('<02>','').replace('<1d>','').replace('<1e>','').replace('<20>','')
 
+                if dst_name == "__MSBROWSE__":
+                    return
+
                 mb_server = ""
                 comment = ""
-                if packet.browser.command == "0x01":
-                    if packet.browser.comment != "00":
-                        comment = packet.browser.comment
-                elif packet.browser.command == "0x0c":
-                    mb_server = packet.browser.mb_server
-                elif packet.browser.command == "0x0f":
-                    if packet.browser.comment != "00":
-                        comment = packet.browser.comment
-
-                windows=""
-                if "windows_version" in packet.browser.field_names:
-                    if len(packet.browser.windows_version) != 4: # e.g. 0409
-                        windows = f"({packet.browser.windows_version.replace(' or ','|')})"
-                else:
-                    windows = lookup_windows(f"{packet.browser.os_major}.{packet.browser.os_minor}")
-                out_arr = [f"{dst_name}\{identifier}", nb_name, windows, mb_server, comment]
+                match packet.browser.command:
+                    case "0x01":
+                        if packet.browser.comment != "00":
+                            comment = packet.browser.comment
+                    case "0x0c":
+                        mb_server = packet.browser.mb_server
+                    case "0x0f":
+                        if packet.browser.comment != "00":
+                            comment = packet.browser.comment
+                out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
-
+          
                 if self.args["greppable"]:
                     self.out.write(f"BROWSER:{out_str}\n")
                     self.out.flush()
