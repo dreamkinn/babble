@@ -234,7 +234,7 @@ class PacketHandler:
             else:
                 identifier = packet.browser.server
 
-            if not self.d['browser'].get(packet.browser.server.lower()):
+            if not self.d['browser'].get(identifier.lower()):
                 stack = get_protocol_stack(packet)
  
                 nb_name = ""
@@ -250,15 +250,13 @@ class PacketHandler:
 
                 mb_server = ""
                 comment = ""
-                match packet.browser.command:
-                    case "0x01":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
-                    case "0x0c":
-                        mb_server = packet.browser.mb_server
-                    case "0x0f":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
+
+                if packet.browser.command == "0x01" or packet.browser.command == "0x0f":
+                    if packet.browser.comment != "00":
+                        comment = packet.browser.comment
+                elif packet.browser.command == "0x0c":
+                    mb_server = packet.browser.mb_server
+
                 out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
