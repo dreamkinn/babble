@@ -7,6 +7,21 @@ def print_error(msg):
 def print_info(msg):
     print(f"\033[94m[*] {msg}\033[0m")
 
+def lookup_windows(nt):
+    win = {
+        "5.0":"(Windows 2000)",
+        "5.1":"(Windows XP)",
+        "5.2":"(Windows Server 2003)",
+        "6.0":"(Windows Server 2008)",
+        "6.1":"(Linux|Windows 7|Windows 2008R2)",
+        "6.2":"(Windows 2012)",
+        "6.3":"(Windows 2012R2)",
+        "10":"(Windows 10|Windows Server 2016+)"
+    }
+    if win.get(nt):
+        return win[nt]
+    return ""
+
 class PacketHandler:
     def __init__(self, args, d, LLDP, CDP, DNS, MDNS, BROWSER,DHCPv6, output, debug=False):
         self.d = d
@@ -33,15 +48,18 @@ class PacketHandler:
                 self.print_packet("lldp", packet, packet.lldp, packet.lldp.tlv_type)
 
             if not self.d['lldp'].get(packet.lldp.tlv_system_name.lower()):
+                vlan_name = ""
+                if "ieee_802_1_vlan_name" in packet.lldp.field_names:
+                    vlan_name = packet.lldp.ieee_802_1_vlan_name  
                 if self.args["greppable"]:
-                    print(f"LLDP:{packet.lldp.tlv_system_name}")
-                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+                    print(f"LLDP:{packet.lldp.tlv_system_name} : {vlan_name}")
+                    self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
                     self.out.flush()
                     self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
                     return
-                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}\n")
+                self.out.write(f"LLDP:{packet.lldp.tlv_system_name}:{vlan_name}\n")
                 self.out.flush()
-                self.LLDP.add_row(packet.lldp.tlv_system_name)
+                self.LLDP.add_row(f"{packet.lldp.tlv_system_name} : {vlan_name}")
                 self.d['lldp'][packet.lldp.tlv_system_name.lower()] = True
         except:
             if self.debug:
@@ -59,20 +77,24 @@ class PacketHandler:
             if self.debug:
                 self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid)
             if not self.d['cdp'].get(packet.cdp.deviceid.lower()):
+
+                ip = ""
+                if "nrgyz_ip_address" in packet.cdp.field_names:
+                    ip = packet.cdp.nrgyz_ip_address 
                 if self.args["greppable"]:
-                    print(f"CDP:{packet.cdp.deviceid}")
-                    self.out.write(f"CDP:{packet.cdp.deviceid}\n")
+                    print(f"CDP:{packet.cdp.deviceid} : {ip}")
+                    self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
                     self.out.flush()
                     self.d['cdp'][packet.cdp.deviceid.lower()] = True
                     return
-                self.out.write(f"CDP:{packet.cdp.deviceid}\n")
+                self.out.write(f"CDP:{packet.cdp.deviceid} : {ip}\n")
                 self.out.flush()
-                self.CDP.add_row(packet.cdp.deviceid)
+                self.CDP.add_row(f"{packet.cdp.deviceid} : {ip}")
                 self.d['cdp'][packet.cdp.deviceid.lower()] = True
         except:
             if self.debug:
                 print_error("Error in handle_cdp")
-                self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid, print=print_error)
+                self.print_packet("cdp", packet, packet.cdp, packet.cdp.deviceid, print=print_error, force=True)
 
     def handle_dns(self, packet):
         if not self.d.get('dns'):
@@ -86,7 +108,7 @@ class PacketHandler:
                 query = packet.dns.qry_name
             else:
                 query = packet.dns.resp_name
-            if not self.d['dns'].get(query.lower()):
+            if not self.d['dns'].get(query.lower()) and self.dns_is_interesting(query.lower()):
                 if self.args["greppable"]:
                     print(f"DNS:{query}")
                     self.out.write(f"DNS:{query}\n")
@@ -141,37 +163,49 @@ class PacketHandler:
             self.d['mdns']['count'] += 1
         self.MDNS.title = f"MDNS ({self.d['mdns']['count']})"
 
-        try:
-            queries = []
-            if 'dns_resp_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_resp_name)
-            if 'dns_ptr_domain_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_ptr_domain_name)
-            if 'dns_qry_name' in packet.mdns.field_names:
-                queries.append(packet.mdns.dns_qry_name)
-                
-            if self.debug:
-                self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type)
-
-            for query in queries:
-                if not self.d['mdns'].get(query.lower()) and self.dns_is_interesting(query):
-                    if self.args["greppable"]:
-                        self.out.write(f"MDNS:{query}\n")
-                        self.out.flush()
-                        print(f"MDNS:{query}")
-                        self.d['mdns'][query.lower()] = True
-                        return
+        # try:
+        queries = []
+        if 'dns_resp_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_resp_name)
+        if 'dns_ptr_domain_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_ptr_domain_name)
+        if 'dns_qry_name' in packet.mdns.field_names:
+            queries.append(packet.mdns.dns_qry_name)
+        if 'dns_srv_target' in packet.mdns.field_names:
+            target = packet.mdns.dns_srv_target
+            if 'dns_srv_port' in packet.mdns.field_names:
+                target += f":{packet.mdns.dns_srv_port}"
+            if 'dns_hinfo_os' in packet.mdns.field_names:
+                target += f" ({packet.mdns.dns_hinfo_os})"
+            queries.append(target)
+        
+        info = []
+        if 'dns_txt' in packet.mdns.field_names:
+            info.append(packet.mdns.dns_txt)
+        if 'dns_hinfo_os' in  packet.mdns.field_names:
+            info.append(packet.mdns.dns_hinfo_os)
+            
+        if self.debug:
+            self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type)
+        for query in queries:
+            if not self.d['mdns'].get(query.lower()) and self.dns_is_interesting(query):
+                if self.args["greppable"]:
                     self.out.write(f"MDNS:{query}\n")
                     self.out.flush()
-                    self.MDNS.add_row(query)
+                    print(f"MDNS:{query}")
                     self.d['mdns'][query.lower()] = True
-        except:
-            if self.debug:
-                print_error("Error in handle_mdns")
-                if packet.mdns.dns_flags_response == '0':
-                    self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type, print=print_error)
-                else:
-                    self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_resp_type, print=print_error)
+                    return
+                self.out.write(f"MDNS:{query}\n")
+                self.out.flush()
+                self.MDNS.add_row(query)
+                self.d['mdns'][query.lower()] = True
+        # except:
+        #     if self.debug:
+        #         print_error("Error in handle_mdns")
+        #         if packet.mdns.dns_flags_response == '0':
+        #             self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type, print=print_error, force=True)
+        #         else:
+        #             self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_resp_type, print=print_error, force=True)
 
 # doc here : https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-brws/0e74d70e-dcf7-422e-8285-e2e193f363d9
     def handle_browser(self, packet):
@@ -181,12 +215,26 @@ class PacketHandler:
             self.d['browser']['count'] += 1
         self.BROWSER.title = f"BROWSER ({self.d['browser']['count']})"
 
+        # not interesting
+        if packet.browser.command == "0x08" or packet.browser.command == "0x09":
+            return
+
         try:
             # if not packet.browser.command == '0x09': # 'Get Backup List Request'
             if self.debug:
                 self.print_packet("browser", packet, packet.browser, packet.browser.command)
             
-            if not self.d['browser'].get(packet.browser.server.lower()):
+
+            if packet.browser.command == "0x02":
+                identifier = packet.browser.response_computer_name
+            elif packet.browser.command == "0x0a":
+                identifier = packet.browser.backup_server
+            elif packet.browser.command == "0x0b":
+                identifier = packet.browser.browser_to_promote
+            else:
+                identifier = packet.browser.server
+
+            if not self.d['browser'].get(identifier.lower()):
                 stack = get_protocol_stack(packet)
  
                 nb_name = ""
@@ -199,16 +247,22 @@ class PacketHandler:
 
                 mb_server = ""
                 comment = ""
-                match packet.browser.command:
-                    case "0x01":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
-                    case "0x0c":
-                        mb_server = packet.browser.mb_server
-                    case "0x0f":
-                        if packet.browser.comment != "00":
-                            comment = packet.browser.comment
-                out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
+                if packet.browser.command == "0x01":
+                    if packet.browser.comment != "00":
+                        comment = packet.browser.comment
+                elif packet.browser.command == "0x0c":
+                    mb_server = packet.browser.mb_server
+                elif packet.browser.command == "0x0f":
+                    if packet.browser.comment != "00":
+                        comment = packet.browser.comment
+
+                windows=""
+                if "windows_version" in packet.browser.field_names:
+                    if len(packet.browser.windows_version) != 4: # e.g. 0409
+                        windows = f"({packet.browser.windows_version.replace(' or ','|')})"
+                else:
+                    windows = lookup_windows(f"{packet.browser.os_major}.{packet.browser.os_minor}")
+                out_arr = [f"{dst_name}\{identifier}", nb_name, windows, mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
 
@@ -216,18 +270,18 @@ class PacketHandler:
                     self.out.write(f"BROWSER:{out_str}\n")
                     self.out.flush()
                     print(f"BROWSER:{out_str}")
-                    self.d['browser'][packet.browser.server.lower()] = True
+                    self.d['browser'][identifier.lower()] = True
                     return
                 self.out.write(f"BROWSER:{out_str}\n")
                 self.out.flush()
                 # TODO check user agent before statuting on OS
                 self.BROWSER.add_row(out_str)
-                self.d['browser'][packet.browser.server.lower()] = True
+                self.d['browser'][identifier.lower()] = True
         except:
             if self.debug:
                 print_error("Error in handle_browser")
                 print_error(f"Stack : {get_protocol_stack(packet)}")
-                self.print_packet("browser", packet, packet.browser, packet.browser.command, print=print_error)
+                self.print_packet("browser", packet, packet.browser, packet.browser.command, print=print_error, force=True)
 
     # def handle_netbios(self,packet):
     #     if not self.d.get('browser'):
@@ -269,9 +323,9 @@ class PacketHandler:
             return False
         return True
 
-    def print_packet(self,protocolstring, packet, protocol, identifier,print=print_info):
+    def print_packet(self,protocolstring, packet, protocol, identifier,print=print_info, force=False):
         # print_error(packet)
-        if not self.d.get(f"{protocolstring}{identifier}"):
+        if not self.d.get(f"{protocolstring}{identifier}") or force:
             print(f"Stack : {get_protocol_stack(packet)}")
             print(protocol.field_names)
             for i in protocol.field_names:

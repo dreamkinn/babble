@@ -24,7 +24,7 @@ Author: @Dreamkinn
 """
 
 default_interface = "eth"
-protocol_filter="lldp or browser or dns or mdns or netbios or dhcpv6 or cdp"
+
 
 MDNS  = Table(title="MDNS")
 DHCPv6 = Table(title="DHCPv6")
@@ -118,7 +118,8 @@ def wrapper_loop_capture(files, debug):
 
 if __name__ == "__main__":
 
-    global current_live
+    global current_live, protocol_filter
+    protocol_filter="lldp or browser or mdns or netbios or dhcpv6 or cdp"
 
     def proper_exit(*args):
         current_live.stop()
@@ -163,6 +164,7 @@ if __name__ == "__main__":
 
     if args['dns']:
         columns.add_renderable(DNS)
+        protocol_filter += " or dns"
 
     if args["file"]:
         if os.path.isdir(args["file"]):

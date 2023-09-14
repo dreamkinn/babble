@@ -13,7 +13,10 @@ The advantages of Babble are the following :
 Babble can be useful in early phases of offensive security audits, when the auditors have no foothold but still want to discover domains/hosts/services stealthily.
 
 ## Installation
-Requirements :
+Packages : 
+- tshark
+
+Python 3 packages :
 - pyshark
 - rich
 ```
@@ -47,3 +50,5 @@ Don't hesitate to ask support for other relevant protocols
 - CIDR analysis
 - Progress bar for pcap ingestion
 - Last seen column (last time a packet was seen for a given query)
+
+- Sources : https://www.netresec.com/?page=PcapFiles
