@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     def proper_exit(*args):
         current_live.stop()
-        print(f"\033[92m[+]Exiting and saving to {out.name}...\033[0m")
+        print(f"\033[92m[+]Exiting and saving to {out.name}\033[0m")
         # if a == 'y':
             # live.stop()
         out.close()

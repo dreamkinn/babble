@@ -102,7 +102,10 @@ class PacketHandler:
         else:
             self.d['dns']['count'] += 1
         self.DNS.title = f"DNS ({self.d['dns']['count']})"
-
+        
+        stack = get_protocol_stack(packet)
+        ip = packet.ip.src if "ip" in stack else ""
+        
         try:
             if packet.dns.flags_response == '0':
                 query = packet.dns.qry_name
@@ -110,14 +113,14 @@ class PacketHandler:
                 query = packet.dns.resp_name
             if not self.d['dns'].get(query.lower()) and self.dns_is_interesting(query.lower()):
                 if self.args["greppable"]:
-                    print(f"DNS:{query}")
-                    self.out.write(f"DNS:{query}\n")
+                    print(f"DNS:{ip}:{query}")
+                    self.out.write(f"DNS:{ip}:{query}\n")
                     self.out.flush()
                     self.d['dns'][query.lower()] = True
                     return
-                self.out.write(f"DNS:{query}\n")
+                self.out.write(f"DNS:{ip}:{query}\n")
                 self.out.flush()
-                self.DNS.add_row(query)
+                self.DNS.add_row(f"{ip} {query}")
                 self.d['dns'][query.lower()] = True
         except:
             if self.debug:
@@ -133,6 +136,7 @@ class PacketHandler:
         
         if self.debug:
             self.print_packet("dhcpv6", packet, packet.dhcpv6, packet.dhcpv6.option_type)
+
 
         try:
             if not self.d['dhcpv6'].get(packet.dhcpv6.client_domain.lower()):
@@ -184,20 +188,23 @@ class PacketHandler:
             info.append(packet.mdns.dns_txt)
         if 'dns_hinfo_os' in  packet.mdns.field_names:
             info.append(packet.mdns.dns_hinfo_os)
+
+        stack = get_protocol_stack(packet)
+        ip = packet.ip.src if "ip" in stack else ""
             
         if self.debug:
             self.print_packet("mdns", packet, packet.mdns, packet.mdns.dns_qry_type)
         for query in queries:
             if not self.d['mdns'].get(query.lower()) and self.dns_is_interesting(query):
                 if self.args["greppable"]:
-                    self.out.write(f"MDNS:{query}\n")
+                    self.out.write(f"MDNS:{ip}:{query}\n")
                     self.out.flush()
-                    print(f"MDNS:{query}")
+                    print(f"MDNS:{ip}:{query}")
                     self.d['mdns'][query.lower()] = True
                     return
-                self.out.write(f"MDNS:{query}\n")
+                self.out.write(f"MDNS:{ip}:{query}\n")
                 self.out.flush()
-                self.MDNS.add_row(query)
+                self.MDNS.add_row(f"{ip} {query}")
                 self.d['mdns'][query.lower()] = True
         # except:
         #     if self.debug:
@@ -256,8 +263,10 @@ class PacketHandler:
                         comment = packet.browser.comment
                 elif packet.browser.command == "0x0c":
                     mb_server = packet.browser.mb_server
+                
+                ip = packet.ip.src if "ip" in stack else ""
 
-                out_arr = [f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
+                out_arr = [ip, f"{dst_name}\{packet.browser.server}", nb_name, f"(Win {packet.browser.os_major}.{packet.browser.os_minor})", mb_server, comment]
                 # join with : or space depending on greppable
                 out_str = ":".join(out_arr) if self.args["greppable"] else " ".join(out_arr)
           
